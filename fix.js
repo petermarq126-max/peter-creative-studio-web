@@ -1,0 +1,1 @@
+window.prompt=document.getElementById('prompt');
