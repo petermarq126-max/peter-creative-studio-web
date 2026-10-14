@@ -80,3 +80,20 @@ test('library reports QA state and never embeds an unsigned or foreign URL',asyn
   assert.match(h.node('customerAssets').innerHTML,/QA: PENDING/); assert.match(h.node('customerAssets').innerHTML,/QA: PASS/);
   assert.doesNotMatch(h.node('customerAssets').innerHTML,/evil.example/); assert.match(h.node('customerAssets').innerHTML,/token=signed/);
 });
+
+test('guest preview uses labelled samples with no network calls or stored credentials',async()=>{
+  const h=harness(); h.node('customerDemo').handlers.click();
+  assert.match(h.node('customerBalance').textContent,/sample/);
+  assert.match(h.node('customerStatus').textContent,/DEMO/);
+  assert.ok(!h.node('customerAccount').classList.contains('hide'));
+  await h.node('customerQuoteForm').handlers.submit({preventDefault(){}});
+  assert.match(h.node('customerQuoteResult').textContent,/not a live quote/);
+  assert.equal(h.calls.length,0); assert.equal(h.storage.size,0);
+});
+test('exiting preview preserves an existing real session without logout or any API call',async()=>{
+  const h=harness({stored:{access_token:'a',refresh_token:'r',expires_at:Date.now()/1000+3600}});
+  const before=h.storage.get('pcs.customer.session.v1');
+  h.node('customerDemo').handlers.click(); await h.node('customerSignOut').handlers.click();
+  assert.equal(h.storage.get('pcs.customer.session.v1'),before);
+  assert.ok(h.node('customerAccount').classList.contains('hide')); assert.equal(h.calls.length,0);
+});

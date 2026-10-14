@@ -26,7 +26,7 @@
   const byId = id => document.getElementById(id);
   if (!byId('customerView')) return;
   const storeKey = 'pcs.customer.session.v1';
-  let session = null, busy = false, epoch = 0;
+  let session = null, busy = false, epoch = 0, demo = false;
   try { session = readSession(JSON.parse(sessionStorage.getItem(storeKey))); } catch { /* Sign-in remains available if storage is denied. */ }
   function persist(value) {
     session = value;
@@ -35,6 +35,8 @@
   function status(text, error = false) { byId('customerStatus').textContent = text; byId('customerStatus').className = error ? 'bad' : 'm'; }
   function clearSession(message = 'Signed out.') {
     epoch++;
+    demo = false;
+    byId('customerSignOut').textContent = 'Sign out';
     persist(null);
     byId('customerSignIn').classList.remove('hide');
     byId('customerAccount').classList.add('hide');
@@ -102,6 +104,7 @@
   byId('customerTab').addEventListener('click', () => {
     byId('studioView').classList.add('hide'); byId('libraryView').classList.add('hide'); byId('locked').classList.add('hide'); byId('customerView').classList.remove('hide');
     if (!PUBLIC_KEY) { status('Customer preview awaits public-key configuration. Sign-in is unavailable.', true); byId('customerSignInButton').disabled = true; return; }
+    if (demo) return;
     if (session) loadAccount().catch(error => status(error.message, true)); else status('Sign in with an existing Studio customer account.');
   });
   for (const id of ['studioTab','libraryTab']) byId(id).addEventListener('click', () => {
@@ -109,6 +112,7 @@
     if (!new URLSearchParams(location.hash.slice(1)).get('token')) { byId('locked').classList.remove('hide'); byId('studioView').classList.add('hide'); byId('libraryView').classList.add('hide'); }
   });
   byId('customerSignOut').addEventListener('click', async () => {
+    if (demo) { demo = false; epoch++; byId('customerAccount').classList.add('hide'); byId('customerSignIn').classList.remove('hide'); byId('customerSignOut').textContent = 'Sign out'; status('Preview closed. Sign in for your real account.'); return; }
     const current = session;
     clearSession();
     if (current) {
@@ -117,6 +121,21 @@
         if (!response.ok && response.status !== 401 && !session) status('Signed out on this tab. Server session revocation could not be confirmed.');
       } catch { if (!session) status('Signed out on this tab. Server session revocation could not be confirmed.'); }
     }
+  });
+  byId('customerDemo').addEventListener('click', () => {
+    epoch++; demo = true;
+    byId('studioView').classList.add('hide'); byId('libraryView').classList.add('hide'); byId('locked').classList.add('hide'); byId('customerView').classList.remove('hide');
+    byId('customerSignIn').classList.add('hide'); byId('customerAccount').classList.remove('hide');
+    byId('customerPassword').value = '';
+    byId('customerIdentity').textContent = 'Sample account — interface preview';
+    byId('customerBalance').textContent = '150 (sample credits, no cash value)';
+    byId('customerSignOut').textContent = 'Exit preview';
+    renderPlans({plans:[{name:'Starter',monthlyCredits:150,priceCents:1900},{name:'Creator',monthlyCredits:400,priceCents:3900},{name:'Pro',monthlyCredits:900,priceCents:7900}]});
+    byId('customerLibraryStatus').textContent = 'Sample library — no private assets loaded.';
+    byId('customerAssets').innerHTML = '';
+    byId('customerPrompt').value = 'A futuristic creative studio with a glowing violet orb';
+    byId('customerQuoteResult').textContent = 'Try the quote button to preview the interaction. All values here are examples.';
+    status('DEMO: sample data only. No login, payments, generation or account changes.');
   });
   byId('customerSignIn').addEventListener('submit', async event => {
     event.preventDefault(); if (busy || !PUBLIC_KEY) return; busy = true; byId('customerSignInButton').disabled = true;
@@ -132,7 +151,13 @@
     finally { busy = false; byId('customerSignInButton').disabled = false; }
   });
   byId('customerQuoteForm').addEventListener('submit', async event => {
-    event.preventDefault(); if (busy || !session) return;
+    event.preventDefault();
+    if (demo) {
+      if (!byId('customerPrompt').value.trim()) return;
+      byId('customerQuoteResult').textContent = 'Example only: 1 Peter Credit. This is sample data, not a live quote. No credits will be charged.';
+      return;
+    }
+    if (busy || !session) return;
     const prompt = byId('customerPrompt').value.trim(); if (!prompt) return;
     busy = true; byId('customerQuoteButton').disabled = true;
     const started = epoch;
@@ -141,4 +166,5 @@
     catch (error) { if (started === epoch) byId('customerQuoteResult').textContent = error.message; }
     finally { busy = false; byId('customerQuoteButton').disabled = false; }
   });
+  if (new URLSearchParams(location.search || '').get('preview') === 'demo') byId('customerDemo').click();
 })();
